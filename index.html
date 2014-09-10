@@ -26,7 +26,14 @@ body {
    stroke: #700;
    stroke-width: 1px;
 }
-
+#mysvg {
+   position: absolute;
+   left: 0;
+   top: 0;
+   width: 100%;
+   height: 100%;
+   z-index: -9999;
+}
 .land {
    fill: #222;
 }
@@ -88,8 +95,8 @@ var tle = ['1 25544U 98067A   14248.54733697  .00011066  00000-0  19985-3 0   31
     var projections = {"mercator": d3.geo.mercator,
        "orthographic": d3.geo.orthographic}
 
-       var width = 960,
-       height = 960,
+       var width = window.innerWidth,
+       height = window.innerHeight,
        speed = 1e-3,
        start = Date.now();
 
@@ -101,20 +108,23 @@ function set_projection(proj_str){
       .translate([width / 2, height / 2])
       .precision(.1);
    path = d3.geo.path()
-      .projection(projection)
-      .context(context);
+      .projection(projection);
 }
 
 set_projection("mercator")
 
 $('.projection').click(function(){ proj_str = $(this).attr('id'); set_projection(proj_str); console.log(proj_str); render(); })
 
-var canvas = d3.select("#orbits").append("canvas")
-.attr("width", width)
-.attr("height", height);
+//var canvas = d3.select("#orbits").append("canvas")
+//.attr("width", width)
+//.attr("height", height);
 
-var context = canvas.node().getContext("2d");
+//var context = canvas.node().getContext("2d");
 
+var svg = d3.select("body").append("svg")
+    .attr("width", width)
+    .attr("height", height)
+    .attr("id", "mysvg");
 var earth 
 d3.json("/public/world-110m.json", function(error, world) {
       var land = topojson.feature(world, world.objects.land);
@@ -137,52 +147,51 @@ function update_projection(orbit) {
       .scale((width + 1) / 2 / Math.PI)
    }
 }
-function render_earth(earth, path, context) {
+function render_earth(earth, path, svg) {
    console.log("rendering earth");
-   var sphere = {type: "Sphere"};
-   context.beginPath();
-   path(sphere);
-   context.lineWidth = 3;
-   context.strokeStyle = "#000";
-   context.stroke();
+   $("#mysvg").empty(); 
 
-   context.beginPath();
-   path(sphere);
-   context.fillStyle = "#fff";
-   context.fill();
+  svg.append("defs").append("path")
+    .datum({type: "Sphere"})
+    .attr("id", "sphere")
+    .attr("d", path);
 
-   context.beginPath();
-   path(earth.land);
-   context.fillStyle = "#222";
-   context.fill();
+  //svg.append("use")
+  //  .attr("class", "stroke")
+  //  .attr("xlink:href", "#sphere");
 
-   context.beginPath();
-   path(earth.borders);
-   context.lineWidth = .5;
-   context.strokeStyle = "#fff";
-   context.stroke();
+  //svg.append("use")
+  //  .attr("class", "fill")
+  //  .attr("xlink:href", "#sphere");
 
-   context.beginPath();
-   path(earth.grid);
-   context.lineWidth = .5;
-   context.strokeStyle = "rgba(119,119,119,.5)";
-   context.stroke();
+  svg.append("path")
+    .datum(earth.grid)
+    .attr("class", "graticule")
+    .attr("d", path);
+
+  svg.insert("path", ".graticule")
+      .datum(earth.land)
+      .attr("class", "land")
+      .attr("d", path);
+
+  svg.insert("path", ".graticule")
+      .datum(earth.borders)
+      .attr("class", "boundary")
+      .attr("d", path);
 }
-function render_ephemeris(orbit, projection, path, context) {
+function render_ephemeris(orbit, path, svg) {
    var sat = {type: 'MultiPoint', coordinates : orbit}
-   context.beginPath();
-   path.pointRadius(0.01)
-      path(sat);
-   context.lineWidth = 3;
-   context.strokeStyle = "#007";
-   context.stroke();
+   svg.insert("path", ".graticule")
+      .datum(sat)
+      .attr("class", "orbit")
+      .attr("d", path);
 }
 function render() {
    var orbit = ephemgen(tle, 1500)
-      context.clearRect(0, 0, width, height);
+      //context.clearRect(0, 0, width, height);
    update_projection(orbit);
-   render_earth(earth, path, context)
-      render_ephemeris(orbit, projection, path, context)
+   render_earth(earth, path, svg)
+   render_ephemeris(orbit, path, svg)
 }
 
 d3.select(self.frameElement).style("height", height + "px");
