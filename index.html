@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Bootstrap 101 Template</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- Bootstrap -->
+<link href="css/bootstrap.min.css" rel="stylesheet" media="screen">
+</head>
+<style>
+body {
+   padding-top: 40px;
+   background: #fcfcfa;
+}
+.graticule {
+   fill: none;
+   stroke: #777;
+   stroke-opacity: .5;
+   stroke-width: .5px;
+}
+#orbits {
+   width: 100%;
+}
+.orbit {
+   color: #700;
+   stroke: #700;
+   stroke-width: 1px;
+}
+
+.land {
+   fill: #222;
+}
+
+.boundary {
+   fill: none;
+   stroke: #fff;
+   stroke-width: .5px;
+}
+
+</style>
+<body>
+
+<div class="navbar navbar-inverse navbar-fixed-top">
+   <div class="navbar-inner">
+      <div class="container">
+         <button type="button" class="btn btn-navbar" data-toggle="collapse" data-target=".nav-collapse">
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+         </button>
+         <a class="brand" href="#">Ephemd</a>
+         <div class="nav-collapse collapse">
+            <ul class="nav">
+               <li class="active"><a href="#">Home</a></li>
+               <li><a href="#about">About</a></li>
+            </ul>
+         </div><!--/.nav-collapse -->
+      </div>
+   </div>
+</div>
+<div class="container">
+   <div class="row">
+      <div class="span4">
+         <div class="btn-group" data-toggle="buttons-radio">
+            <button type="button" class="btn btn-primary projection" id="mercator">Mercator</button>
+            <button type="button" class="btn btn-primary projection active" id="orthographic">Orthographic</button>
+         </div>
+
+      </div>
+   </div>
+   <div class="row">
+      <div class="span9" id="orbits"></div>
+   </div>
+</div>
+<script src="http://code.jquery.com/jquery.js"></script>
+<script src="js/bootstrap.min.js"></script>
+<script src="http://d3js.org/d3.v3.min.js"></script>
+<script src="http://d3js.org/topojson.v1.min.js"></script>
+<script src="/js/satellite.js"></script>
+<script src="/js/ephemgen.js"></script>
+<script src="/js/ephemrender.js"></script>
+<script>
+
+//  Sample TLE
+var tle = ['1 25544U 98067A   14248.54733697  .00011066  00000-0  19985-3 0   319',
+    '2 25544  51.6458  61.2838 0003653  81.7962 358.0808 15.50248863903791']
+
+    var projections = {"mercator": d3.geo.mercator,
+       "orthographic": d3.geo.orthographic}
+
+       var width = 960,
+       height = 960,
+       speed = 1e-3,
+       start = Date.now();
+
+var projection
+var path
+var proj_str
+function set_projection(proj_str){
+   projection = projections[proj_str]()
+      .translate([width / 2, height / 2])
+      .precision(.1);
+   path = d3.geo.path()
+      .projection(projection)
+      .context(context);
+}
+
+set_projection("mercator")
+
+$('.projection').click(function(){ proj_str = $(this).attr('id'); set_projection(proj_str); console.log(proj_str); render(); })
+
+var canvas = d3.select("#orbits").append("canvas")
+.attr("width", width)
+.attr("height", height);
+
+var context = canvas.node().getContext("2d");
+
+var earth 
+d3.json("/public/world-110m.json", function(error, world) {
+      var land = topojson.feature(world, world.objects.land);
+      var borders = topojson.mesh(world, world.objects.countries, function(a, b) { return a !== b; });
+      var graticule = d3.geo.graticule();
+      var grid = graticule();
+      earth = {land: land, borders: borders, grid: grid}
+      });
+
+
+function update_projection(orbit) {
+   if (proj_str == "orthographic") {
+      projection.clipAngle(90)
+         .rotate([- orbit[0][0], -orbit[0][1]/2])
+      .scale((width + 1) / Math.PI)
+   }
+   if (proj_str == "mercator") {
+      // rotation along spin axis only
+      projection.rotate([- orbit[0][0], 0])
+      .scale((width + 1) / 2 / Math.PI)
+   }
+}
+function render_earth(earth, path, context) {
+   console.log("rendering earth");
+   var sphere = {type: "Sphere"};
+   context.beginPath();
+   path(sphere);
+   context.lineWidth = 3;
+   context.strokeStyle = "#000";
+   context.stroke();
+
+   context.beginPath();
+   path(sphere);
+   context.fillStyle = "#fff";
+   context.fill();
+
+   context.beginPath();
+   path(earth.land);
+   context.fillStyle = "#222";
+   context.fill();
+
+   context.beginPath();
+   path(earth.borders);
+   context.lineWidth = .5;
+   context.strokeStyle = "#fff";
+   context.stroke();
+
+   context.beginPath();
+   path(earth.grid);
+   context.lineWidth = .5;
+   context.strokeStyle = "rgba(119,119,119,.5)";
+   context.stroke();
+}
+function render_ephemeris(orbit, projection, path, context) {
+   var sat = {type: 'MultiPoint', coordinates : orbit}
+   context.beginPath();
+   path.pointRadius(0.01)
+      path(sat);
+   context.lineWidth = 3;
+   context.strokeStyle = "#007";
+   context.stroke();
+}
+function render() {
+   var orbit = ephemgen(tle, 1500)
+      context.clearRect(0, 0, width, height);
+   update_projection(orbit);
+   render_earth(earth, path, context)
+      render_ephemeris(orbit, projection, path, context)
+}
+
+d3.select(self.frameElement).style("height", height + "px");
+
+</script>
