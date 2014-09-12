@@ -22,8 +22,8 @@ body {
    width: 100%;
 }
 .orbit {
-   color: #700;
-   stroke: #700;
+   color: #007;
+   stroke: #000;
    stroke-width: 1px;
 }
 #mysvg {
@@ -69,10 +69,16 @@ body {
    <div class="row">
       <div class="span4">
          <div class="btn-group" data-toggle="buttons-radio">
-            <button type="button" class="btn btn-primary projection" id="mercator">Mercator</button>
-            <button type="button" class="btn btn-primary projection active" id="orthographic">Orthographic</button>
+            <button type="button" class="btn btn-primary projection active" id="mercator">Mercator</button>
+            <button type="button" class="btn btn-primary projection" id="orthographic">Orthographic</button>
          </div>
 
+      </div>
+   </div>
+   <div class="row">
+      <div class="span4">
+         <div class="btn-group trackables" data-toggle="buttons-radio">
+         </div>
       </div>
    </div>
    <div class="row">
@@ -86,114 +92,66 @@ body {
 <script src="/js/satellite.js"></script>
 <script src="/js/ephemgen.js"></script>
 <script src="/js/ephemrender.js"></script>
+<script src="/public/cubesat_tles.js"></script>
 <script>
 
 //  Sample TLE
-var tle = ['1 25544U 98067A   14248.54733697  .00011066  00000-0  19985-3 0   319',
-    '2 25544  51.6458  61.2838 0003653  81.7962 358.0808 15.50248863903791']
-
-    var projections = {"mercator": d3.geo.mercator,
-       "orthographic": d3.geo.orthographic}
-
-       var width = window.innerWidth,
-       height = window.innerHeight,
-       speed = 1e-3,
-       start = Date.now();
-
-var projection
-var path
-var proj_str
-function set_projection(proj_str){
-   projection = projections[proj_str]()
-      .translate([width / 2, height / 2])
-      .precision(.1);
-   path = d3.geo.path()
-      .projection(projection);
+//var tles = {"zarya": ['1 25544U 98067A   14248.54733697  .00011066  00000-0  19985-3 0   319',
+//   '2 25544  51.6458  61.2838 0003653  81.7962 358.0808 15.50248863903791']}
+var tles = cubesat_tles
+var satellites = [
+"FLOCK 1B-1",
+"FLOCK 1B-2",
+"FLOCK 1B-7",
+"FLOCK 1B-8",
+"FLOCK 1B-15",
+"FLOCK 1B-16",
+"FLOCK 1C-1",
+"FLOCK 1C-2"
+]
+var tracking = "FLOCK 1B-1"
+var orbits = []
+for (var i = 0; i < satellites.length; i++) { 
+   orbits[i] = ephemgen(tles[satellites[i]], 1500)
+   b = document.createElement("button")
+   b.className += " btn"
+   b.className += " btn-primary"
+   b.className += " tracking"
+  
+   b.id = satellites[i]
+   b.innerHTML = satellites[i]
+   
+   $(".trackables").append(b)
 }
+$('.projection').click(function(){ 
+      var projection_str = $(this).attr('id');
+      graphics.set_projection(projection_str);
+      graphics.render(orbits, satellites);
+})
 
-set_projection("mercator")
-
-$('.projection').click(function(){ proj_str = $(this).attr('id'); set_projection(proj_str); console.log(proj_str); render(); })
-
-//var canvas = d3.select("#orbits").append("canvas")
-//.attr("width", width)
-//.attr("height", height);
-
-//var context = canvas.node().getContext("2d");
+$('.tracking').click(function(){ 
+      tracking = $(this).attr('id');
+      graphics.update_projection();
+      graphics.render(orbits, satellites);
+})
 
 var svg = d3.select("body").append("svg")
-    .attr("width", width)
-    .attr("height", height)
-    .attr("id", "mysvg");
+   .attr("width", window.innerWidth)
+   .attr("height", window.innerHeight)
+   .attr("id", "mysvg")
+
 var earth 
 d3.json("/public/world-110m.json", function(error, world) {
-      var land = topojson.feature(world, world.objects.land);
-      var borders = topojson.mesh(world, world.objects.countries, function(a, b) { return a !== b; });
-      var graticule = d3.geo.graticule();
-      var grid = graticule();
-      earth = {land: land, borders: borders, grid: grid}
-      });
+   var land = topojson.feature(world, world.objects.land);
+   var borders = topojson.mesh(world, world.objects.countries, function(a, b) { return a !== b; });
+   var graticule = d3.geo.graticule();
+   var grid = graticule();
+   earth = {land: land, borders: borders, grid: grid}
+   graphics.render(orbits, satellites);
+});
 
-
-function update_projection(orbit) {
-   if (proj_str == "orthographic") {
-      projection.clipAngle(90)
-         .rotate([- orbit[0][0], -orbit[0][1]/2])
-      .scale((width + 1) / Math.PI)
-   }
-   if (proj_str == "mercator") {
-      // rotation along spin axis only
-      projection.rotate([- orbit[0][0], 0])
-      .scale((width + 1) / 2 / Math.PI)
-   }
+d3.select(self.frameElement).style("height", window.innerHeight + "px");
+function zoom() {
+     svg.attr("transform", "translate(" + d3.event.translate + ")scale(" + d3.event.scale + ")");
 }
-function render_earth(earth, path, svg) {
-   console.log("rendering earth");
-   $("#mysvg").empty(); 
-
-  svg.append("defs").append("path")
-    .datum({type: "Sphere"})
-    .attr("id", "sphere")
-    .attr("d", path);
-
-  //svg.append("use")
-  //  .attr("class", "stroke")
-  //  .attr("xlink:href", "#sphere");
-
-  //svg.append("use")
-  //  .attr("class", "fill")
-  //  .attr("xlink:href", "#sphere");
-
-  svg.append("path")
-    .datum(earth.grid)
-    .attr("class", "graticule")
-    .attr("d", path);
-
-  svg.insert("path", ".graticule")
-      .datum(earth.land)
-      .attr("class", "land")
-      .attr("d", path);
-
-  svg.insert("path", ".graticule")
-      .datum(earth.borders)
-      .attr("class", "boundary")
-      .attr("d", path);
-}
-function render_ephemeris(orbit, path, svg) {
-   var sat = {type: 'MultiPoint', coordinates : orbit}
-   svg.insert("path", ".graticule")
-      .datum(sat)
-      .attr("class", "orbit")
-      .attr("d", path);
-}
-function render() {
-   var orbit = ephemgen(tle, 1500)
-      //context.clearRect(0, 0, width, height);
-   update_projection(orbit);
-   render_earth(earth, path, svg)
-   render_ephemeris(orbit, path, svg)
-}
-
-d3.select(self.frameElement).style("height", height + "px");
-
 </script>
