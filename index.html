@@ -92,66 +92,69 @@ body {
 <script src="/js/satellite.js"></script>
 <script src="/js/ephemgen.js"></script>
 <script src="/js/ephemrender.js"></script>
-<script src="/public/cubesat_tles.js"></script>
 <script>
 
-//  Sample TLE
-//var tles = {"zarya": ['1 25544U 98067A   14248.54733697  .00011066  00000-0  19985-3 0   319',
-//   '2 25544  51.6458  61.2838 0003653  81.7962 358.0808 15.50248863903791']}
-var tles = cubesat_tles
-var satellites = [
-"FLOCK 1B-1",
-"FLOCK 1B-2",
-"FLOCK 1B-7",
-"FLOCK 1B-8",
-"FLOCK 1B-15",
-"FLOCK 1B-16",
-"FLOCK 1C-1",
-"FLOCK 1C-2"
-]
-var tracking = "FLOCK 1B-1"
-var orbits = []
-for (var i = 0; i < satellites.length; i++) { 
-   orbits[i] = ephemgen(tles[satellites[i]], 1500)
-   b = document.createElement("button")
-   b.className += " btn"
-   b.className += " btn-primary"
-   b.className += " tracking"
-  
-   b.id = satellites[i]
-   b.innerHTML = satellites[i]
-   
-   $(".trackables").append(b)
+function handle_planet_tles(data) {
+    var tles = data.sources.PLANET.satellites
+    window.tles = tles
+    var satellites = Object.keys(tles).sort()
+    console.log(satellites)
+    var tracking = "0905"
+    window.tracking = tracking
+    var orbits = []
+    window.orbits = orbits
+    for (var i in satellites) { 
+       orbits[i] = ephemgen(
+            [
+                tles[satellites[i]]["tle1"],
+                tles[satellites[i]]["tle2"]
+            ],
+            1500
+       )
+       b = document.createElement("button")
+       b.className += " btn"
+       b.className += " btn-primary"
+       b.className += " tracking"
+      
+       b.id = satellites[i]
+       b.innerHTML = satellites[i]
+       
+       $(".trackables").append(b)
+    }
+    $('.projection').click(function(){ 
+          var projection_str = $(this).attr('id');
+          graphics.set_projection(projection_str);
+          graphics.render(orbits, satellites);
+    })
+    
+    $('.tracking').click(function(){ 
+          window.tracking = $(this).attr('id');
+          graphics.update_projection();
+          graphics.render(orbits, satellites);
+    })
+    
+    var svg = d3.select("body").append("svg")
+       .attr("width", window.innerWidth)
+       .attr("height", window.innerHeight)
+       .attr("id", "mysvg")
+    
+    d3.json("/public/world-110m.json", function(error, world) {
+       var land = topojson.feature(world, world.objects.land);
+       var borders = topojson.mesh(world, world.objects.countries, function(a, b) { return a !== b; });
+       var graticule = d3.geo.graticule();
+       var grid = graticule();
+       window.earth = {land: land, borders: borders, grid: grid}
+       graphics.render(orbits, satellites);
+    });
+    
+    d3.select(self.frameElement).style("height", window.innerHeight + "px");
+    function zoom() {
+         svg.attr("transform", "translate(" + d3.event.translate + ")scale(" + d3.event.scale + ")");
+    }
+    window.zoom = zoom
+    window.svg = svg
+
 }
-$('.projection').click(function(){ 
-      var projection_str = $(this).attr('id');
-      graphics.set_projection(projection_str);
-      graphics.render(orbits, satellites);
-})
 
-$('.tracking').click(function(){ 
-      tracking = $(this).attr('id');
-      graphics.update_projection();
-      graphics.render(orbits, satellites);
-})
-
-var svg = d3.select("body").append("svg")
-   .attr("width", window.innerWidth)
-   .attr("height", window.innerHeight)
-   .attr("id", "mysvg")
-
-var earth 
-d3.json("/public/world-110m.json", function(error, world) {
-   var land = topojson.feature(world, world.objects.land);
-   var borders = topojson.mesh(world, world.objects.countries, function(a, b) { return a !== b; });
-   var graticule = d3.geo.graticule();
-   var grid = graticule();
-   earth = {land: land, borders: borders, grid: grid}
-   graphics.render(orbits, satellites);
-});
-
-d3.select(self.frameElement).style("height", window.innerHeight + "px");
-function zoom() {
-     svg.attr("transform", "translate(" + d3.event.translate + ")scale(" + d3.event.scale + ")");
-}
 </script>
+<script src="https://digitalocean.ephemd.com/planet/?callback=handle_planet_tles"></script>

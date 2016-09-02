@@ -18,7 +18,15 @@ projection.string = proj_str
    }
 
 var update_projection = function(orbit) {
-      position = ephemgen(tles[tracking], 1)
+    var tles = window.tles
+    var tracking = window.tracking
+      position = ephemgen(
+            [
+                tles[tracking]["tle1"],
+                tles[tracking]["tle2"]
+            ],
+            1
+       )
       if (projection.string == "orthographic") {
          projection.clipAngle(90)
             .rotate([- position[0][0], -position[0][1]/2])
@@ -46,7 +54,7 @@ var render_earth = function(earth, path, svg) {
    svg.insert("path", ".graticule")
       .datum(earth.land)
       .attr("class", "land")
-      .call(d3.behavior.zoom().scaleExtent([1, 8]).on("zoom", zoom))
+      .call(d3.behavior.zoom().scaleExtent([1, 8]).on("zoom", window.zoom))
       .attr("d", path);
 
    svg.insert("path", ".graticule")
@@ -65,12 +73,12 @@ var render_ephemeris = function(orbit, path, svg) {
 
 var render = function(orbits, satellites) {
    update_projection(orbit);
-   render_earth(earth, path, svg)
+   render_earth(window.earth, path, window.svg)
       for (var i = 0; i < satellites.length; i++) { 
          console.log(satellites);
          console.log(tles[satellites[i]]);
             var orbit = orbits[i]//ephemgen(tles[satellites[i]], 1500)
-            render_ephemeris(orbit, path, svg)
+            render_ephemeris(orbit, path, window.svg)
       }
 }
 
